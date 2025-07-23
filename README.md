@@ -139,3 +139,7 @@ If you have both a CPU and a GPU job running, it will prompt you to choose which
 8.  Once the job is running, it waits for the `sshd` port to become active on the compute node.
 9.  Finally, it uses `nc` (netcat) to create a tunnel, piping the SSH connection from the login node to the `sshd` daemon inside the container.
 10. Your local SSH client can now communicate with the SSH server running in your container on the compute node.
+
+
+# Based on
+Thank you to https://github.com/gmertes/vscode-remote-hpc for creating the base of these scripts.
