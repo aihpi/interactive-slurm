@@ -11,7 +11,7 @@ For the impatient, here's a minimal setup:
 ```bash
 # 1. Clone and install on HPC login node
 git clone https://github.com/aihpi/interactive-slurm.git
-cp interactive-slurm/bin/* ~/bin/
+mkdir -p ~/bin && cp interactive-slurm/bin/* ~/bin/
 chmod +x ~/bin/*.bash
 
 # 2. Add to your local ~/.ssh/config
@@ -54,8 +54,7 @@ ssh slurm-cpu
 # On the HPC login node
 cd ~/
 git clone https://github.com/aihpi/interactive-slurm.git
-mkdir -p ~/bin
-cp interactive-slurm/bin/* ~/bin/
+mkdir -p ~/bin && cp interactive-slurm/bin/* ~/bin/
 chmod +x ~/bin/*.bash
 ```
 
