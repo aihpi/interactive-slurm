@@ -18,7 +18,7 @@ chmod +x ~/bin/*.bash
 Host slurm-cpu
     HostName YOUR_HPC_LOGIN_NODE
     User YOUR_USERNAME
-    ProxyCommand ssh %h -l %u "bash ~/bin/start-ssh-job.bash cpu /path/to/your/container.sqsh"
+    ProxyCommand ssh %h -l %u "bash ~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
 
 # 3. Connect from VSCode or terminal
 ssh slurm-cpu
@@ -98,7 +98,7 @@ Host slurm-cpu
     HostName <HPC_LOGIN_NODE_ADDRESS>
     User <YOUR_HPC_USERNAME>
     IdentityFile <PATH_TO_YOUR_SSH_KEY_FOR_HPC>
-    ProxyCommand ssh %h -l %u "~/bin/start-ssh-job.bash cpu /path/on/hpc/to/your/container.sqsh"
+    ProxyCommand ssh %h -l %u "~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 
@@ -106,7 +106,7 @@ Host slurm-gpu
     HostName <HPC_LOGIN_NODE_ADDRESS>
     User <YOUR_HPC_USERNAME>
     IdentityFile <PATH_TO_YOUR_SSH_KEY_FOR_HPC>
-    ProxyCommand ssh %h -l %u "~/bin/start-ssh-job.bash gpu /path/on/hpc/to/your/gpu_container.sqsh"
+    ProxyCommand ssh %h -l %u "~/bin/start-ssh-job.bash gpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 ```
@@ -115,7 +115,7 @@ Host slurm-gpu
 -   `<HPC_LOGIN_NODE_ADDRESS>`: The hostname or IP address of your HPC's login node.
 -   `<YOUR_HPC_USERNAME>`: Your username on the HPC cluster.
 -   `<PATH_TO_YOUR_SSH_KEY_FOR_HPC>`: The path to the private SSH key you use to log in to the HPC.
--   `/path/on/hpc/to/your/container.sqsh`: The full path to your `enroot` container image on the HPC filesystem.
+-   The container path `/sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh` is an example - replace with your actual container image path.
 
 **Container Path Flexibility**: 
 - Container images in `/sc/projects` are automatically copied to your home directory for faster access
