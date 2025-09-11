@@ -18,7 +18,7 @@ chmod +x ~/bin/*.bash
 Host slurm-cpu
     HostName YOUR_HPC_LOGIN_NODE
     User YOUR_USERNAME
-    ProxyCommand ssh %h -l %u "bash ~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
+    ProxyCommand ssh %h -l %u "bash ~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch-ssh.sqsh"
 
 # 3. Connect from VSCode or terminal
 ssh slurm-cpu
