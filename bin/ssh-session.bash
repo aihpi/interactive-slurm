@@ -1,37 +1,42 @@
 #!/bin/bash
 
-# Use the provided container image path.
+# Use the provided container image path (optional).
 CONTAINER_IMAGE=$2
-# If no container image is specified, exit.
+USE_CONTAINER=true
+
+# If no container image is specified, run without container
 if [ -z "$CONTAINER_IMAGE" ]; then
-    echo "Error: No container image specified." >&2
-    exit 1
+    echo "ℹ️ No container specified, running directly on compute node"
+    USE_CONTAINER=false
 fi
 
-# Handle /sc/projects paths by copying to home directory if needed
-if [[ "$CONTAINER_IMAGE" =~ ^/sc/projects ]]; then
-    # Extract filename from the path
-    SQSH_FILENAME=$(basename "$CONTAINER_IMAGE")
-    LOCAL_SQSH_PATH="$HOME/$SQSH_FILENAME"
-    
-    # If local copy doesn't exist, try to copy from /sc/projects
-    if [ ! -f "$LOCAL_SQSH_PATH" ]; then
-        echo "Copying $CONTAINER_IMAGE to $LOCAL_SQSH_PATH..."
-        if cp "$CONTAINER_IMAGE" "$LOCAL_SQSH_PATH" 2>/dev/null; then
-            echo "✅ Successfully copied sqsh file to home directory"
-            CONTAINER_IMAGE="$LOCAL_SQSH_PATH"
+# Handle container validation and setup only if using container
+if [ "$USE_CONTAINER" = true ]; then
+    # Handle /sc/projects paths by copying to home directory if needed
+    if [[ "$CONTAINER_IMAGE" =~ ^/sc/projects ]]; then
+        # Extract filename from the path
+        SQSH_FILENAME=$(basename "$CONTAINER_IMAGE")
+        LOCAL_SQSH_PATH="$HOME/$SQSH_FILENAME"
+        
+        # If local copy doesn't exist, try to copy from /sc/projects
+        if [ ! -f "$LOCAL_SQSH_PATH" ]; then
+            echo "Copying $CONTAINER_IMAGE to $LOCAL_SQSH_PATH..."
+            if cp "$CONTAINER_IMAGE" "$LOCAL_SQSH_PATH" 2>/dev/null; then
+                echo "✅ Successfully copied sqsh file to home directory"
+                CONTAINER_IMAGE="$LOCAL_SQSH_PATH"
+            else
+                echo "⚠️ Could not copy from /sc/projects, will try to use original path in container"
+            fi
         else
-            echo "⚠️ Could not copy from /sc/projects, will try to use original path in container"
+            echo "ℹ️ Using existing sqsh file: $LOCAL_SQSH_PATH"
+            CONTAINER_IMAGE="$LOCAL_SQSH_PATH"
         fi
     else
-        echo "ℹ️ Using existing sqsh file: $LOCAL_SQSH_PATH"
-        CONTAINER_IMAGE="$LOCAL_SQSH_PATH"
-    fi
-else
-    # Check if the container image exists for non-/sc/projects paths
-    if [ ! -f "$CONTAINER_IMAGE" ]; then
-        echo "Error: Container image not found at '$CONTAINER_IMAGE'" >&2
-        exit 1
+        # Check if the container image exists for non-/sc/projects paths
+        if [ ! -f "$CONTAINER_IMAGE" ]; then
+            echo "Error: Container image not found at '$CONTAINER_IMAGE'" >&2
+            exit 1
+        fi
     fi
 fi
 
@@ -60,29 +65,54 @@ else
   echo "ℹ️ Slurm SSH aliases already present"
 fi
 
-enroot start \
-  --rw \
-  --mount /usr/bin/srun:/usr/bin/srun \
-  --mount /usr/bin/sbatch:/usr/bin/sbatch \
-  --mount /usr/bin/scancel:/usr/bin/scancel \
-  --mount /usr/lib/x86_64-linux-gnu/libslurm.so.41:/usr/lib/x86_64-linux-gnu/libslurm.so.41 \
-  --mount /usr/lib/x86_64-linux-gnu/libslurm.so.41.0.0:/usr/lib/x86_64-linux-gnu/libslurm.so.41.0.0 \
-  --mount /usr/lib/x86_64-linux-gnu/slurm-wlm:/usr/lib/x86_64-linux-gnu/slurm-wlm \
-  --mount /usr/lib/x86_64-linux-gnu/libmunge.so.2:/usr/lib/x86_64-linux-gnu/libmunge.so.2 \
-  "$CONTAINER_IMAGE" bash -c '
-if [ ! -d "${HOME:-~}.ssh" ]; then
-    mkdir -p ${HOME:-~}/.ssh
-fi
+if [ "$USE_CONTAINER" = true ]; then
+    echo "🐳 Starting SSH daemon in container: $(basename "$CONTAINER_IMAGE")"
+    enroot start \
+      --rw \
+      --mount /usr/bin/srun:/usr/bin/srun \
+      --mount /usr/bin/sbatch:/usr/bin/sbatch \
+      --mount /usr/bin/scancel:/usr/bin/scancel \
+      --mount /usr/lib/x86_64-linux-gnu/libslurm.so.41:/usr/lib/x86_64-linux-gnu/libslurm.so.41 \
+      --mount /usr/lib/x86_64-linux-gnu/libslurm.so.41.0.0:/usr/lib/x86_64-linux-gnu/libslurm.so.41.0.0 \
+      --mount /usr/lib/x86_64-linux-gnu/slurm-wlm:/usr/lib/x86_64-linux-gnu/slurm-wlm \
+      --mount /usr/lib/x86_64-linux-gnu/libmunge.so.2:/usr/lib/x86_64-linux-gnu/libmunge.so.2 \
+      "$CONTAINER_IMAGE" bash -c '
+    if [ ! -d "${HOME:-~}/.ssh" ]; then
+        mkdir -p ${HOME:-~}/.ssh
+    fi
 
-if [ ! -f "${HOME:-~}/.ssh/vscode-remote-hostkey" ]; then
-    ssh-keygen -t ed25519 -f ${HOME:-~}/.ssh/vscode-remote-hostkey -N ""
-fi
+    if [ ! -f "${HOME:-~}/.ssh/vscode-remote-hostkey" ]; then
+        ssh-keygen -t ed25519 -f ${HOME:-~}/.ssh/vscode-remote-hostkey -N ""
+    fi
 
-if [ -f "/usr/sbin/sshd" ]; then
-    sshd_cmd=/usr/sbin/sshd
+    if [ -f "/usr/sbin/sshd" ]; then
+        sshd_cmd=/usr/sbin/sshd
+    else
+        sshd_cmd=sshd
+    fi
+    $sshd_cmd -D -p '$1' -f /dev/null -h ${HOME:-~}/.ssh/vscode-remote-hostkey
+    '
 else
-    sshd_cmd=sshd
+    echo "🖥️  Starting SSH daemon directly on compute node"
+    
+    # Ensure SSH directory exists
+    if [ ! -d "$HOME/.ssh" ]; then
+        mkdir -p "$HOME/.ssh"
+    fi
+
+    # Generate SSH host key if it doesn't exist
+    if [ ! -f "$HOME/.ssh/vscode-remote-hostkey" ]; then
+        ssh-keygen -t ed25519 -f "$HOME/.ssh/vscode-remote-hostkey" -N ""
+    fi
+
+    # Find sshd binary
+    if [ -f "/usr/sbin/sshd" ]; then
+        sshd_cmd=/usr/sbin/sshd
+    else
+        sshd_cmd=sshd
+    fi
+
+    # Start SSH daemon directly on the compute node
+    exec $sshd_cmd -D -p $1 -f /dev/null -h "$HOME/.ssh/vscode-remote-hostkey"
 fi
-$sshd_cmd -D -p '$1' -f /dev/null -h ${HOME:-~}/.ssh/vscode-remote-hostkey
-'
 

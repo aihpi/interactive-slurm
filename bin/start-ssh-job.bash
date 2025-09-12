@@ -24,15 +24,21 @@ function usage ()
     help      Display this message
 
     Job commands (see usage below):
-    cpu <path>       Connect to a CPU node, specifying a container image path
-    gpu <path>       Connect to a GPU node, specifying a container image path
+    cpu [path]       Connect to a CPU node, optionally specifying a container image path
+    gpu [path]       Connect to a GPU node, optionally specifying a container image path
 
     You should _NOT_ manually call the script with 'cpu' or 'gpu' commands.
     They should be used in the ProxyCommand in your ~/.ssh/config file, for example:
         Host vscode-remote-cpu
             User USERNAME
             IdentityFile ~/.ssh/vscode-remote
-            ProxyCommand ssh HPC-LOGIN "~/bin/start-ssh-job.bash cpu /path/to/your/container.sqsh"
+            ProxyCommand ssh HPC-LOGIN \"~/bin/start-ssh-job.bash cpu\"
+            StrictHostKeyChecking no  
+        
+        Host vscode-remote-cpu-container
+            User USERNAME
+            IdentityFile ~/.ssh/vscode-remote
+            ProxyCommand ssh HPC-LOGIN \"~/bin/start-ssh-job.bash cpu /path/to/your/container.sqsh\"
             StrictHostKeyChecking no  
 
     You can have a CPU and GPU job running at the same time, just add them as separate hosts in your config.
@@ -140,9 +146,17 @@ function connect () {
 
     if [ -z "${JOB_STATE}" ]; then
         PORT=$(shuf -i 10000-65000 -n 1)
-        list=($(/usr/bin/sbatch -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT "$CONTAINER_IMAGE_PATH"))
+        if [ -n "$CONTAINER_IMAGE_PATH" ]; then
+            list=($(/usr/bin/sbatch -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT "$CONTAINER_IMAGE_PATH"))
+        else
+            list=($(/usr/bin/sbatch -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT))
+        fi
         JOB_SUBMIT_ID=${list[3]}
-        >&2 echo "Submitted new $JOB_NAME job (id: $JOB_SUBMIT_ID port: $PORT)"
+        if [ -n "$CONTAINER_IMAGE_PATH" ]; then
+            >&2 echo "Submitted new $JOB_NAME job with container (id: $JOB_SUBMIT_ID port: $PORT)"
+        else
+            >&2 echo "Submitted new $JOB_NAME job without container (id: $JOB_SUBMIT_ID port: $PORT)"
+        fi
     fi
 
     while [ ! "$JOB_STATE" == "RUNNING" ]; do

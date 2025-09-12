@@ -4,85 +4,172 @@
 
 A set of scripts to simplify running interactive SSH sessions on SLURM compute nodes, particularly designed for use with tools like VSCode Remote-SSH. These scripts handle SLURM job submission, wait for the job to start, and proxy the connection, allowing you to seamlessly connect to a container on a compute node.
 
-## Quick Start
+## 🚀 Quick Start
 
-For the impatient, here's a minimal setup:
+**Automated Setup** - Just run one command and follow the prompts:
+
+### 📱 **On Your Local Machine:**
+```bash
+git clone https://github.com/aihpi/interactive-slurm.git
+cd interactive-slurm
+./setup.sh
+```
+
+That's it! The setup script will:
+- ✅ Generate SSH keys automatically
+- ✅ Copy keys to your HPC cluster  
+- ✅ Install scripts on the remote cluster
+- ✅ Configure SSH settings
+- ✅ Set up VSCode integration
+- ✅ Handle container options (optional)
+
+### 🎯 **Connect Immediately After Setup:**
+```bash
+# Direct compute node access (no container)
+ssh slurm-cpu     # CPU job
+ssh slurm-gpu     # GPU job
+
+# Or with containers (if configured)
+ssh slurm-cpu-container
+ssh slurm-gpu-container
+```
+
+### 💻 **VSCode Users:**
+1. Install the Remote-SSH extension
+2. Press `Ctrl/Cmd+Shift+P` → "Remote-SSH: Connect to Host"
+3. Select `slurm-cpu`, `slurm-gpu`, or container variants
+
+## ✨ Features
+
+- 🚀 **One-Command Setup**: Automated installation with interactive prompts
+- 🐳 **Optional Containers**: Use with or without enroot containers (`.sqsh` files)
+- 📁 **Smart Container Management**: Auto-copies from `/sc/projects` to home directory
+- 🔗 **Full SLURM Integration**: Access to `srun`, `sbatch`, `scancel` commands
+- 🎯 **VSCode Ready**: Perfect integration with Remote-SSH extension
+- ⚡ **Resource Optimized**: Sensible defaults (CPU: 16GB/4cores, GPU: 32GB/12cores)
+- 🏗️ **Architecture Aware**: Targets x86 nodes to avoid compatibility issues
+- 🔧 **Easy Management**: List, cancel, and monitor jobs with simple commands
+- 🔐 **Secure**: Automatic SSH key generation and distribution
+
+## 📋 Prerequisites
+
+- Access to a SLURM-managed HPC cluster
+- SSH access to the cluster's login node
+- `enroot` installed on compute nodes (only if using containers)
+- VSCode with [Remote-SSH extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh) (optional)
+
+## 📖 Complete Tutorial
+
+### Step 1: **📱 On Your Local Machine**
+
+Clone the repository and run the setup script:
 
 ```bash
-# 1. Clone and install on HPC login node
 git clone https://github.com/aihpi/interactive-slurm.git
-mkdir -p ~/bin && cp interactive-slurm/bin/* ~/bin/
-chmod +x ~/bin/*.bash
+cd interactive-slurm
+./setup.sh
+```
 
-# 2. Add to your local ~/.ssh/config
-Host slurm-cpu
-    HostName YOUR_HPC_LOGIN_NODE
-    User YOUR_USERNAME
-    ProxyCommand ssh %h -l %u "bash ~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch-ssh.sqsh"
+### Step 2: **Follow the Interactive Prompts**
 
-# 3. Connect from VSCode or terminal
+The setup script will ask you:
+
+1. **HPC Login Node**: Enter your cluster's hostname
+   ```
+   HPC Login Node (hostname or IP) [login.hpc.university.edu]: login.your-cluster.edu
+   ```
+
+2. **Your Username**: Enter your HPC username
+   ```
+   Your username on the HPC cluster [john.doe]: your.username
+   ```
+
+3. **Container Usage**: Choose whether to use containers
+   ```
+   Do you want to use containers? [Y/n]: y
+   ```
+
+4. **Container Source**: If using containers, specify where to get them
+   ```
+   Do you have containers in /sc/projects that you want to copy? [Y/n]: y
+   Container path to copy: /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh
+   ```
+
+### Step 3: **✅ Automatic Configuration**
+
+The script will automatically:
+- Generate SSH keys (`~/.ssh/interactive-slurm`)
+- Copy the public key to your HPC cluster
+- Install scripts on the HPC cluster
+- Configure your local SSH settings
+- Set up VSCode integration
+- Test the connection
+
+### Step 4: **🚀 Start Using!**
+
+After setup completes, you can immediately connect:
+
+#### **Command Line:**
+```bash
+ssh slurm-cpu              # CPU job, direct access
+ssh slurm-gpu              # GPU job, direct access  
+ssh slurm-cpu-container    # CPU job with container
+ssh slurm-gpu-container    # GPU job with container
+```
+
+#### **VSCode:**
+1. Open VSCode
+2. Press `Ctrl/Cmd+Shift+P`
+3. Type "Remote-SSH: Connect to Host"
+4. Select your desired host (e.g., `slurm-cpu`)
+5. VSCode will connect to a compute node automatically!
+
+## 🧪 Testing Your Setup
+
+### Quick Connection Test
+
+Try connecting via command line first:
+
+```bash
+# Test CPU connection (should submit a job and connect)
 ssh slurm-cpu
 ```
 
-## Features
+### **🖥️ On the HPC Cluster** - Manage Your Jobs
 
--   **Smart container management**: Automatically copies container images from shared locations (e.g., `/sc/projects`) to user home directories
--   **Full Slurm integration**: Containers have access to `srun`, `sbatch`, `scancel`, and other Slurm commands via SSH forwarding
--   **Architecture-aware scheduling**: CPU jobs target x86 nodes by default to avoid compatibility issues
--   **Automatic SSH setup**: Generates SSH host keys and configures SSH daemon within containers
--   **Resource-optimized defaults**: Sensible CPU (16GB, 4 cores) and GPU (32GB, 12 cores) job parameters
--   Start interactive jobs on CPU or GPU nodes
--   Automatically manages SLURM job submission (`sbatch`) and cancellation (`scancel`)
--   Provides a direct SSH connection into a container running on the compute node
--   Supports `enroot` containers (`.sqsh` files)
--   Configurable timeout for pending jobs
--   Helper commands to `list`, `cancel`, and `ssh` into running jobs
--   Easily configurable SLURM parameters for different job types
-
-## Prerequisites
-
--   Access to a SLURM-managed HPC cluster.
--   `enroot` installed on the cluster's compute nodes.
--   An `enroot` container image (e.g., a `.sqsh` file) available on the cluster's filesystem.
--   SSH access to a login node of the cluster.
-
-## Installation
-
-### Option 1: Direct Installation on HPC (Recommended)
+Once connected, or via direct SSH to the login node:
 
 ```bash
-# On the HPC login node
-cd ~/
-git clone https://github.com/aihpi/interactive-slurm.git
-mkdir -p ~/bin && cp interactive-slurm/bin/* ~/bin/
-chmod +x ~/bin/*.bash
+# List your running interactive jobs
+~/bin/start-ssh-job.bash list
+
+# Cancel all your interactive jobs  
+~/bin/start-ssh-job.bash cancel
+
+# Get help
+~/bin/start-ssh-job.bash help
 ```
 
-### Option 2: Local Clone + SCP Transfer
+### Expected Behavior
 
-1.  **Clone the repository** to your local machine:
-    ```bash
-    git clone https://github.com/aihpi/interactive-slurm.git
-    ```
+1. **First Connection**: Takes 30s-5min (job needs to start)
+2. **Job Submission**: You'll see "Submitted new vscode-remote-cpu job"
+3. **Connection**: Eventually connects to compute node
+4. **Subsequent Connections**: Should reuse existing job (faster)
 
-2.  **Copy the scripts** to your HPC login node:
-    ```bash
-    # From your local machine
-    scp interactive-slurm/bin/* <HPC_LOGIN_NODE>:~/bin/
-    ```
+### ✅ Testing Checklist
 
-3.  **Make scripts executable** on the HPC:
-    ```bash
-    # On the HPC login node
-    chmod +x ~/bin/*.bash
-    ```
+Before reporting issues, verify:
 
-**Note**: Ensure `~/bin` is in your `$PATH` on the login node. Add this to your `~/.bashrc` if needed:
-```bash
-export PATH="$HOME/bin:$PATH"
-```
+- [ ] **📱 Local:** SSH key works: `ssh -i ~/.ssh/interactive-slurm user@hpc`
+- [ ] **🖥️ HPC:** Scripts installed: `ls ~/bin/start-ssh-job.bash`
+- [ ] **🖥️ HPC:** SLURM works: `squeue --me`
+- [ ] **📱 Local:** SSH config generated: `grep slurm-cpu ~/.ssh/config`
+- [ ] **📱 Local:** Basic connection: `ssh slurm-cpu`
+- [ ] **📱 Local:** VSCode extension installed: Remote-SSH
+- [ ] **🖥️ HPC:** Container exists (if used): `ls ~/your-container.sqsh`
 
-## Configuration
+## Manual Configuration (Advanced Users)
 
 ### Local SSH Config for VSCode Remote
 
@@ -94,27 +181,29 @@ Add entries like the following to your `~/.ssh/config` on your **local machine**
 # In your ~/.ssh/config on your LOCAL machine
 
 Host slurm-cpu
-    HostName <HPC_LOGIN_NODE_ADDRESS>
-    User <YOUR_HPC_USERNAME>
-    IdentityFile <PATH_TO_YOUR_SSH_KEY_FOR_HPC>
-    ProxyCommand ssh %h -l %u "~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
+    HostName login.hpc.yourcluster.edu
+    User john.doe
+    IdentityFile ~/.ssh/id_ed25519
+    ConnectTimeout 30
+    ProxyCommand ssh login.hpc.yourcluster.edu -l john.doe "~/bin/start-ssh-job.bash cpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 
 Host slurm-gpu
-    HostName <HPC_LOGIN_NODE_ADDRESS>
-    User <YOUR_HPC_USERNAME>
-    IdentityFile <PATH_TO_YOUR_SSH_KEY_FOR_HPC>
-    ProxyCommand ssh %h -l %u "~/bin/start-ssh-job.bash gpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
+    HostName login.hpc.yourcluster.edu
+    User john.doe
+    IdentityFile ~/.ssh/id_ed25519
+    ConnectTimeout 30
+    ProxyCommand ssh login.hpc.yourcluster.edu -l john.doe "~/bin/start-ssh-job.bash gpu /sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 ```
 
-**Replace the placeholders:**
--   `<HPC_LOGIN_NODE_ADDRESS>`: The hostname or IP address of your HPC's login node.
--   `<YOUR_HPC_USERNAME>`: Your username on the HPC cluster.
--   `<PATH_TO_YOUR_SSH_KEY_FOR_HPC>`: The path to the private SSH key you use to log in to the HPC.
--   The container path `/sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh` is an example - replace with your actual container image path.
+**Replace with your actual values:**
+-   `HostName login.hpc.yourcluster.edu`: Replace with your HPC login node address (e.g., `login.cluster.university.edu` or IP like `192.168.1.100`)
+-   `User john.doe`: Replace with your HPC cluster username
+-   `IdentityFile ~/.ssh/id_ed25519`: Path to your SSH private key (use `~/.ssh/id_rsa` if you have an RSA key)
+-   Container path `/sc/projects/sci-aisc/sqsh-files/pytorch_ssh.sqsh`: Replace with your actual container image path
 
 **Container Path Flexibility**: 
 - Container images in `/sc/projects` are automatically copied to your home directory for faster access
@@ -185,34 +274,65 @@ If you have both a CPU and a GPU job running, it will prompt you to choose which
 10. Your local SSH client can now communicate with the SSH server running in your container on the compute node.
 
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
-### Common Issues
+### Setup Issues
 
-**"Container image not found" error:**
-- Make sure the container path in your SSH config is correct
-- For `/sc/projects` paths, the script will automatically try to copy the file to your home directory
-- Check that the `.sqsh` file exists and is readable
+**❌ "SSH connection test failed" during setup:**
+```bash
+# Verify basic SSH access manually
+ssh your.username@login.your-cluster.edu
 
-**"enroot-mount: failed to mount" error:**
-- This usually means the compute node has different library paths than the login node
-- Try adding `--constraint=ARCH:X86` to your job parameters to use x86 nodes
-- The scripts already include this for CPU jobs by default
+# Check if SSH key was copied correctly
+ssh -i ~/.ssh/interactive-slurm your.username@login.your-cluster.edu
+```
 
-**Job stays in PENDING state:**
-- Check cluster resources with `sinfo` or `squeue`
-- Your requested resources (CPU, memory, GPU) might be too high
-- Try reducing resource requirements in the script configuration
+**❌ "Failed to copy container file":**
+- Container path might not exist: check `/sc/projects/...` path
+- **🖥️ On HPC cluster:** manually copy with `cp /sc/projects/path/container.sqsh ~/`
 
-**SSH connection timeout:**
-- Increase the `TIMEOUT` value in `start-ssh-job.bash` (default: 300 seconds)
-- Check that your SSH key authentication works for the HPC login node
-- Verify that `~/bin` is in your PATH on the login node
+### Connection Issues
 
-**VSCode Remote connection fails:**
-- Make sure your local SSH config syntax is correct
-- Test the connection manually with `ssh slurm-cpu` from your terminal first
-- Check the job logs with `~/bin/start-ssh-job.bash list`
+**⏱️ Connection takes too long (>5 minutes):**
+```bash
+# Check job queue status
+ssh login.your-cluster.edu
+squeue --me  # See if your jobs are pending
+```
+
+**❌ "Connection refused" or immediate disconnection:**
+```bash
+# 📱 On local machine: Check if job is actually running
+ssh login.your-cluster.edu "~/bin/start-ssh-job.bash list"
+
+# Cancel stuck jobs and try again  
+ssh login.your-cluster.edu "~/bin/start-ssh-job.bash cancel"
+```
+
+**❌ VSCode connection fails:**
+1. **First, test command line:** `ssh slurm-cpu`
+2. **Check VSCode settings:** `remote.SSH.connectTimeout` should be ≥300
+3. **View connection logs:** VSCode → Output → Remote-SSH
+
+### Container Issues
+
+**❌ "Container image not found":**
+- **🖥️ On HPC cluster:** Check file exists: `ls ~/your-container.sqsh`
+- For `/sc/projects` paths, setup should auto-copy to home directory
+
+**❌ "enroot-mount failed":**
+- CPU jobs use x86 nodes by default (should prevent this)
+- **🖥️ On HPC cluster:** Verify enroot works: `enroot list`
+
+### Job Issues
+
+**⏸️ Job stays PENDING:**
+- **🖥️ On HPC cluster:** Check resources: `sinfo` and `squeue`
+- Reduce resource requirements in `~/bin/start-ssh-job.bash`
+
+**🔄 Multiple jobs created:**
+- Each SSH connection creates a separate job
+- **🖥️ On HPC cluster:** Clean up: `~/bin/start-ssh-job.bash cancel`
 
 ### Getting Help
 

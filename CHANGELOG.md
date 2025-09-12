@@ -2,7 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2025-09-11
+## [Unreleased] - 2025-09-12
+
+### Added - Major Release: Optional Containers & Automated Setup
+- **Automated Setup Script**: New `setup.sh` provides one-command installation with interactive prompts
+- **Optional Container Support**: Can now run with or without enroot containers
+- **SSH Key Management**: Automatic generation and distribution of SSH keys (`~/.ssh/interactive-slurm`)
+- **VSCode Integration**: Automatic configuration of Remote-SSH extension settings
+- **Container Auto-copy**: Setup script can copy containers from `/sc/projects` to home directory
+- **Connection Validation**: Built-in testing and troubleshooting during setup
+- **Comprehensive Documentation**: New TESTING.md with step-by-step testing guide
+- **Enhanced README**: Complete tutorial with clear local vs remote machine indicators
+
+### Enhanced
+- **Dual Execution Modes**: Both containerized (enroot) and direct compute node access
+- **Smart Container Detection**: Scripts automatically detect container presence/absence
+- **Improved Error Messages**: Better feedback for containerless vs container modes
+- **SSH Configuration**: Auto-generated SSH configs with appropriate timeouts and settings
+- **User Experience**: Emoji-enhanced output and clear step-by-step guidance
+
+### Changed
+- **Container Parameter**: Now optional in `start-ssh-job.bash cpu [path]` and `gpu [path]`
+- **SSH Session Logic**: Conditional execution based on container availability
+- **Documentation Structure**: README focused on automated setup, manual config moved to advanced section
+- **Project Architecture**: Added setup.sh as primary entry point
+
+### Technical Improvements
+- **Session Management**: Enhanced `ssh-session.bash` with dual-mode execution
+- **Error Handling**: Better validation and fallback mechanisms
+- **Tool Detection**: Improved validation of required tools with warnings vs errors
+
+## [Previous] - 2025-09-11
 
 ### Added
 - **Automatic sqsh file management**: `ssh-session.bash` now automatically copies container images from `/sc/projects` to the user's home directory if they don't exist locally
