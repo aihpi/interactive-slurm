@@ -259,7 +259,7 @@ EOF
     scp -i "$SSH_KEY_PATH" bin/* "$HPC_USERNAME@$HPC_LOGIN:~/bin/"
     
     print_info "Running installation on HPC..."
-    ssh -i "$SSH_KEY_PATH" "$HPC_USERNAME@$HPC_LOGIN" "chmod +x ~/install_interactive_slurm.sh && ~/install_interactive_slurm.sh && chmod +x ~/bin/*.bash ~/bin/*.sh"
+    ssh -i "$SSH_KEY_PATH" "$HPC_USERNAME@$HPC_LOGIN" "chmod +x ~/install_interactive_slurm.sh && bash ~/install_interactive_slurm.sh && chmod +x ~/bin/*.bash ~/bin/*.sh"
     
     # Copy container if specified
     if [ "$USE_CONTAINERS" = true ] && [ "$COPY_FROM_SC_PROJECTS" = true ]; then
