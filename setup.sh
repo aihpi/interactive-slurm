@@ -162,7 +162,7 @@ get_hpc_config() {
     echo "Please provide your HPC cluster details:"
     echo
     
-    prompt_with_default "HPC Login Node (hostname or IP)" "login.hpc.university.edu" "HPC_LOGIN"
+    prompt_with_default "HPC Login Node (hostname or IP)" "10.130.0.6" "HPC_LOGIN"
     prompt_with_default "Your username on the HPC cluster" "john.doe" "HPC_USERNAME"
     
     print_info "Configuration set:"
@@ -259,7 +259,10 @@ EOF
     scp -i "$SSH_KEY_PATH" bin/* "$HPC_USERNAME@$HPC_LOGIN:~/bin/"
     
     print_info "Running installation on HPC..."
-    ssh -i "$SSH_KEY_PATH" "$HPC_USERNAME@$HPC_LOGIN" "chmod +x ~/install_interactive_slurm.sh && bash ~/install_interactive_slurm.sh && chmod +x ~/bin/*.bash ~/bin/*.sh"
+    ssh -i "$SSH_KEY_PATH" "$HPC_USERNAME@$HPC_LOGIN" "chmod +x ~/install_interactive_slurm.sh && bash ~/install_interactive_slurm.sh && chmod +x ~/bin/*.bash ~/bin/*.sh && chmod +x ~/bin/start-ssh-job.bash ~/bin/ssh-session.bash ~/bin/incontainer-setup.sh"
+    
+    print_info "Verifying script permissions..."
+    ssh -i "$SSH_KEY_PATH" "$HPC_USERNAME@$HPC_LOGIN" "ls -la ~/bin/*.bash ~/bin/*.sh | head -5"
     
     # Copy container if specified
     if [ "$USE_CONTAINERS" = true ] && [ "$COPY_FROM_SC_PROJECTS" = true ]; then
@@ -275,6 +278,41 @@ EOF
     print_success "Scripts installed on HPC cluster"
 }
 
+# Clean existing Interactive SLURM entries from SSH config
+clean_existing_ssh_config() {
+    local config_file="$1"
+    
+    if [ ! -f "$config_file" ]; then
+        return 0
+    fi
+    
+    # Create a temporary file without Interactive SLURM sections
+    local temp_file=$(mktemp)
+    local in_slurm_section=false
+    
+    while IFS= read -r line; do
+        # Check if we're entering an Interactive SLURM section
+        if echo "$line" | grep -q "=== Interactive SLURM SSH Sessions"; then
+            in_slurm_section=true
+            continue
+        fi
+        
+        # Check if we're exiting an Interactive SLURM section
+        if echo "$line" | grep -q "=== End Interactive SLURM SSH Sessions ==="; then
+            in_slurm_section=false
+            continue
+        fi
+        
+        # Only write lines that are not in a SLURM section
+        if [ "$in_slurm_section" = false ]; then
+            echo "$line" >> "$temp_file"
+        fi
+    done < "$config_file"
+    
+    # Replace the original file with the cleaned version
+    mv "$temp_file" "$config_file"
+}
+
 # Generate SSH config
 generate_ssh_config() {
     print_header "Generating SSH Configuration"
@@ -286,6 +324,12 @@ generate_ssh_config() {
     if [ -f "$SSH_CONFIG_FILE" ]; then
         print_info "Backing up existing SSH config to $SSH_CONFIG_BACKUP"
         cp "$SSH_CONFIG_FILE" "$SSH_CONFIG_BACKUP"
+    fi
+    
+    # Clean existing Interactive SLURM entries
+    if [ -f "$SSH_CONFIG_FILE" ]; then
+        print_info "Removing existing Interactive SLURM SSH entries..."
+        clean_existing_ssh_config "$SSH_CONFIG_FILE"
     fi
     
     # Create SSH config entries
@@ -301,7 +345,7 @@ Host slurm-cpu
     User $HPC_USERNAME
     IdentityFile $SSH_KEY_PATH
     ConnectTimeout 60
-    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "~/bin/start-ssh-job.bash cpu"
+    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "bash ~/bin/start-ssh-job.bash cpu"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 
@@ -310,7 +354,7 @@ Host slurm-gpu
     User $HPC_USERNAME
     IdentityFile $SSH_KEY_PATH
     ConnectTimeout 60
-    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "~/bin/start-ssh-job.bash gpu"
+    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "bash ~/bin/start-ssh-job.bash gpu"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 
@@ -325,7 +369,7 @@ Host slurm-cpu-container
     User $HPC_USERNAME
     IdentityFile $SSH_KEY_PATH
     ConnectTimeout 60
-    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "~/bin/start-ssh-job.bash cpu $CONTAINER_LOCAL_PATH"
+    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "bash ~/bin/start-ssh-job.bash cpu $CONTAINER_LOCAL_PATH"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 
@@ -334,7 +378,7 @@ Host slurm-gpu-container
     User $HPC_USERNAME
     IdentityFile $SSH_KEY_PATH
     ConnectTimeout 60
-    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "~/bin/start-ssh-job.bash gpu $CONTAINER_LOCAL_PATH"
+    ProxyCommand ssh $HPC_LOGIN -l $HPC_USERNAME -i $SSH_KEY_PATH "bash ~/bin/start-ssh-job.bash gpu $CONTAINER_LOCAL_PATH"
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 

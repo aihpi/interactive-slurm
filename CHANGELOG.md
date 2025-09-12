@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - 2025-09-12
 
+### Fixed - Setup Script Improvements & noexec Filesystem Compatibility
+- **noexec Filesystem Support**: ProxyCommand now uses `bash ~/bin/start-ssh-job.bash` to bypass noexec restrictions on NFS home directories
+- **Duplicate SSH Entry Prevention**: Setup script now cleans existing Interactive SLURM entries before adding new ones, preventing conflicts
+- **Enhanced Script Permissions**: Added explicit chmod commands and verification for critical scripts during installation
+- **SSH Config Management**: Automatic cleanup of old SSH configurations ensures the latest settings are always used
+
 ### Added - Major Release: Optional Containers & Automated Setup
 - **Automated Setup Script**: New `setup.sh` provides one-command installation with interactive prompts
 - **Optional Container Support**: Can now run with or without enroot containers

@@ -76,7 +76,7 @@ The setup script will ask you:
 
 1. **HPC Login Node**: Enter your cluster's hostname
    ```
-   HPC Login Node (hostname or IP) [login.hpc.university.edu]: login.your-cluster.edu
+   HPC Login Node (hostname or IP) [10.130.0.6]: login.your-cluster.edu
    ```
 
 2. **Your Username**: Enter your HPC username

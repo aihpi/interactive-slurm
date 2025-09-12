@@ -22,7 +22,7 @@ cd interactive-slurm
 #### Expected Setup Prompts:
 1. **HPC Login Node**: Enter your actual cluster hostname
    ```
-   HPC Login Node (hostname or IP) [login.hpc.university.edu]: YOUR_ACTUAL_LOGIN_NODE
+   HPC Login Node (hostname or IP) [10.130.0.6]: YOUR_ACTUAL_LOGIN_NODE
    ```
 
 2. **Username**: Enter your actual username
