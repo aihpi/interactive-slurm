@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set your Slurm parameters for GPU and CPU jobs here
-SBATCH_PARAM_CPU="-o job.logs -t 4:00:00 -p aisc --account aisc --mem=16GB --cpus-per-task=4 --constraint=ARCH:X86 --export=IN_ENROOT=1"
-SBATCH_PARAM_GPU="-o job.logs -t 4:00:00 -p aisc --account aisc --mem=32GB --cpus-per-task=12 --gpus=h100:1 --export=IN_ENROOT=1"
+SBATCH_PARAM_CPU="-o job.logs -t 8:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=4 --constraint=ARCH:X86 --export=ALL"
+SBATCH_PARAM_GPU="-o job.logs -t 4:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=12 --gpus=gpu:h100:1 --export=ALL"
 
 # The time you expect a job to start in (seconds)
 # If a job doesn't start within this time, the script will exit and cancel the pending job
@@ -72,6 +72,12 @@ function cleanup () {
     if [ ! -z "${JOB_SUBMIT_ID}" ]; then
         scancel $JOB_SUBMIT_ID
         >&2 echo "Cancelled pending job $JOB_SUBMIT_ID"
+    fi
+    if [ ! -z "${SRUN_PID}" ]; then
+        if kill -0 $SRUN_PID 2>/dev/null; then
+            kill $SRUN_PID 2>/dev/null
+            >&2 echo "Killed srun process $SRUN_PID"
+        fi
     fi
 }
 
@@ -146,17 +152,20 @@ function connect () {
 
     if [ -z "${JOB_STATE}" ]; then
         PORT=$(shuf -i 10000-65000 -n 1)
+
+        # Use srun for interactive partition (runs in background)
         if [ -n "$CONTAINER_IMAGE_PATH" ]; then
-            list=($(/usr/bin/sbatch -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT "$CONTAINER_IMAGE_PATH"))
+            nohup srun -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT "$CONTAINER_IMAGE_PATH" > /dev/null 2>&1 &
+            SRUN_PID=$!
+            >&2 echo "Started new $JOB_NAME job with container (srun pid: $SRUN_PID port: $PORT)"
         else
-            list=($(/usr/bin/sbatch -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT))
+            nohup srun -J $JOB_NAME%$PORT $SBATCH_PARAM $SCRIPT_DIR/ssh-session.bash $PORT > /dev/null 2>&1 &
+            SRUN_PID=$!
+            >&2 echo "Started new $JOB_NAME job without container (srun pid: $SRUN_PID port: $PORT)"
         fi
-        JOB_SUBMIT_ID=${list[3]}
-        if [ -n "$CONTAINER_IMAGE_PATH" ]; then
-            >&2 echo "Submitted new $JOB_NAME job with container (id: $JOB_SUBMIT_ID port: $PORT)"
-        else
-            >&2 echo "Submitted new $JOB_NAME job without container (id: $JOB_SUBMIT_ID port: $PORT)"
-        fi
+
+        # Give srun a moment to submit the job
+        sleep 2
     fi
 
     while [ ! "$JOB_STATE" == "RUNNING" ]; do
@@ -167,9 +176,9 @@ function connect () {
 
     >&2 echo "Connecting to $JOB_NODE"
 
-    while ! nc -z $JOB_NODE $JOB_PORT; do 
+    while ! nc -z $JOB_NODE $JOB_PORT; do
         timeout
-        sleep 1 
+        sleep 1
     done
 
     nc $JOB_NODE $JOB_PORT
