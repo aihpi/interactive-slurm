@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set your Slurm parameters for GPU and CPU jobs here
-SBATCH_PARAM_CPU="-o job.logs -t 8:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=4 --export=ALL"
-SBATCH_PARAM_GPU="-o job.logs -t 4:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=12 --gres=gpu:1 --export=ALL"
+SBATCH_PARAM_CPU="-o job.logs -t 8:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=4 --exclude=ga03 --export=ALL"
+SBATCH_PARAM_GPU="-o job.logs -t 4:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=12 --exclude=ga03 --gres=gpu:1 --export=ALL"
 
 # The time you expect a job to start in (seconds)
 # If a job doesn't start within this time, the script will exit and cancel the pending job
