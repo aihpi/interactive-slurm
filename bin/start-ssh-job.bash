@@ -33,20 +33,6 @@ function usage ()
     Job commands:
     cpu [path]       Connect to a CPU node, optionally specifying a container image path
     gpuswap          Swap to GPU environment with salloc reservation
-
-    You should _NOT_ manually call the script with 'cpu' or 'gpuswap' commands.
-    They should be used in the ProxyCommand in your ~/.ssh/config file, for example:
-        Host vscode-remote-cpu
-            User USERNAME
-            IdentityFile ~/.ssh/vscode-remote
-            ProxyCommand ssh HPC-LOGIN \"~/bin/start-ssh-job.bash cpu\"
-            StrictHostKeyChecking no
-        
-        Host vscode-remote-cpu-container
-            User USERNAME
-            IdentityFile ~/.ssh/vscode-remote
-            ProxyCommand ssh HPC-LOGIN \"~/bin/start-ssh-job.bash cpu /path/to/your/container.sqsh\"
-            StrictHostKeyChecking no
     "
 }
 
