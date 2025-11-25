@@ -20,6 +20,17 @@ All notable changes to this project will be documented in this file.
 - **Comprehensive Documentation**: New TESTING.md with step-by-step testing guide
 - **Enhanced README**: Complete tutorial with clear local vs remote machine indicators
 
+### Added - Auto-Update System & Documentation Restructuring
+- **Auto-Update System**: Scripts now automatically update themselves from GitHub when connecting via SSH
+- **Remote Update Commands**: New `remote check` and `remote update` commands for manual update management
+- **Background Updates**: Update checks run silently in background (once daily) during SSH connections
+- **Safe Update Mechanism**: Current installation backed up before applying updates, with restore capability
+- **Developer Documentation**: Created comprehensive DEV.md with technical implementation details
+- **Documentation Split**: Streamlined README.md for users, technical details moved to DEV.md
+- **Update Control**: Users can disable auto-updates with `~/.interactive-slurm.noauto`
+- **Update Logging**: All update operations logged to `~/.interactive-slurm.update.log`
+- **Version Tracking**: Current version tracked in `~/.interactive-slurm.version`
+
 ### Enhanced
 - **Dual Execution Modes**: Both containerized (enroot) and direct compute node access
 - **Smart Container Detection**: Scripts automatically detect container presence/absence

@@ -43,9 +43,20 @@ fi
 # Define the marker string to check if already added
 MARKER="# >>> Slurm-over-SSH (auto-added) <<<"
 
-# Only add block if it doesn't already exist
-if ! grep -Fxq "$MARKER" "$HOME/.bashrc"; then
-  cat >> "$HOME/.bashrc" <<'EOF'
+# Check if SSH-over-SSH wrapper functions exist in bashrc
+if grep -Fxq "$MARKER" "$HOME/.bashrc"; then
+    # Remove SSH-over-SSH wrapper functions when NOT using containers
+    if [ "$USE_CONTAINER" = false ]; then
+        # Remove the SSH-over-SSH block from bashrc
+        sed -i '/# >>> Slurm-over-SSH (auto-added) <<</,/# <<< Slurm-over-SSH (auto-added) >>>/d' "$HOME/.bashrc"
+        echo "🗑️  Removed SSH-over-SSH wrappers (using direct Slurm commands)"
+    else
+        echo "ℹ️ SSH-over-SSH wrappers already present (container mode)"
+    fi
+else
+    # Only add SSH-over-SSH wrapper functions when using containers
+    if [ "$USE_CONTAINER" = true ]; then
+        cat >> "$HOME/.bashrc" <<'EOF'
 
 # >>> Slurm-over-SSH (auto-added) <<<
 if ! command -v sinfo >/dev/null 2>&1; then
@@ -55,15 +66,84 @@ if ! command -v sinfo >/dev/null 2>&1; then
   squeue() { ssh -q "$SLURM_LOGIN" squeue "$@"; }
   sbatch() { ssh -q "$SLURM_LOGIN" sbatch "$@"; }
   srun() { ssh -q "$SLURM_LOGIN" srun "$@"; }
+  salloc() { ssh -q "$SLURM_LOGIN" salloc "$@"; }
   scancel(){ ssh -q "$SLURM_LOGIN" scancel "$@"; }
 fi
 # <<< Slurm-over-SSH (auto-added) >>>
 EOF
 
-  echo "✅ Slurm SSH aliases added to ~/.bashrc"
-else
-  echo "ℹ️ Slurm SSH aliases already present"
+        echo "✅ Added SSH-over-SSH wrappers (container mode)"
+    else
+        echo "ℹ️ Using direct Slurm commands (no wrappers needed)"
+    fi
 fi
+
+# Add remote alias configuration
+REMOTE_MARKER="# >>> Remote Alias Configuration (auto-added) <<<"
+if ! grep -Fxq "$REMOTE_MARKER" "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<'EOF'
+
+# >>> Remote Alias Configuration (auto-added) <<<
+# Define the path to start-ssh-job.bash
+SSH_JOB_SCRIPT="${HOME}/bin/start-ssh-job.bash"
+
+# Add remote alias if the script exists
+if [ -f "$SSH_JOB_SCRIPT" ]; then
+    alias remote="$SSH_JOB_SCRIPT"
+fi
+
+# Function to display remote options when entering slurm-cpu environment
+display_slurm_options() {
+    echo "🖥️  Welcome to the CPU environment!"
+    echo "📋 Available 'remote' commands:"
+    echo "   • remote list       - List running vscode-remote jobs"
+    echo "   • remote cancel     - Cancel running vscode-remote jobs"
+    echo "   • remote ssh        - SSH into the node of a running job"
+    echo "   • remote gpuswap    - Switch to GPU environment"
+    echo "   • remote help       - Display full usage information"
+    echo ""
+    echo "💡 For GPU development:"
+    echo "   • remote gpuswap    - Switch to GPU environment with salloc"
+    echo ""
+    echo "💡 To return to local environment:"
+    echo "   • remote cancel     - Cancel the current session"
+    echo ""
+}
+
+# Add completion for remote commands (optional)
+if command -v complete &>/dev/null; then
+    _remote_completion() {
+        local cur prev opts
+        COMPREPLY=()
+        cur="${COMP_WORDS[COMP_CWORD]}"
+        prev="${COMP_WORDS[COMP_CWORD-1]}"
+        
+        opts="list cancel ssh gpuswap help"
+        
+        if [[ ${cur} == -* ]] ; then
+            COMPREPLY=( $(compgen -W "-h --help" -- ${cur}) )
+            return 0
+        fi
+        
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    }
+    
+    complete -F _remote_completion remote
+fi
+# <<< Remote Alias Configuration (auto-added) >>>
+EOF
+
+  echo "✅ Remote alias configuration added to ~/.bashrc"
+else
+  echo "ℹ️ Remote alias configuration already present"
+fi
+
+# Display remote options when entering the environment
+if [ "$USE_CONTAINER" = true ]; then
+    echo "🐳 Container: $(basename "$CONTAINER_IMAGE")"
+fi
+display_slurm_options
 
 if [ "$USE_CONTAINER" = true ]; then
     echo "🐳 Starting SSH daemon in container: $(basename "$CONTAINER_IMAGE")"

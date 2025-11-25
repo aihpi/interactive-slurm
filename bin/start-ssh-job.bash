@@ -1,13 +1,18 @@
 #!/bin/bash
 
-# Set your Slurm parameters for GPU and CPU jobs here
-SBATCH_PARAM_CPU="-o job.logs -t 8:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=4 --export=ALL"
-SBATCH_PARAM_GPU="-o job.logs -t 4:00:00 -p aisc-interactive --account aisc --mem=32GB --cpus-per-task=12 --gres=gpu:1 --export=ALL"
+# Set your Slurm parameters for CPU jobs here
+SBATCH_PARAM_CPU="-o job.logs -t 8:00:00 -p aisc-interactive --account aisc --exclude=ga03 --mem=32GB --cpus-per-task=4 --export=ALL"
 
 # The time you expect a job to start in (seconds)
 # If a job doesn't start within this time, the script will exit and cancel the pending job
 TIMEOUT=300
 
+# Auto-update configuration (lightweight, runs in background)
+UPDATE_VERSION_FILE="$HOME/.interactive-slurm.version"
+UPDATE_LOG="$HOME/.interactive-slurm.update.log"
+UPDATE_DIR="$HOME/.interactive-slurm-updates"
+REPO_URL="https://github.com/aihpi/interactive-slurm.git"
+UPDATE_INTERVAL=86400  # 24 hours in seconds
 
 ####################
 # don't edit below this line
@@ -22,28 +27,159 @@ function usage ()
     cancel    Cancels running vscode-remote jobs
     ssh       SSH into the node of a running job
     help      Display this message
+    check     Check for Interactive SLURM updates
+    update    Update Interactive SLURM to latest version
 
-    Job commands (see usage below):
+    Job commands:
     cpu [path]       Connect to a CPU node, optionally specifying a container image path
-    gpu [path]       Connect to a GPU node, optionally specifying a container image path
+    gpuswap          Swap to GPU environment with salloc reservation
 
-    You should _NOT_ manually call the script with 'cpu' or 'gpu' commands.
+    You should _NOT_ manually call the script with 'cpu' or 'gpuswap' commands.
     They should be used in the ProxyCommand in your ~/.ssh/config file, for example:
         Host vscode-remote-cpu
             User USERNAME
             IdentityFile ~/.ssh/vscode-remote
             ProxyCommand ssh HPC-LOGIN \"~/bin/start-ssh-job.bash cpu\"
-            StrictHostKeyChecking no  
+            StrictHostKeyChecking no
         
         Host vscode-remote-cpu-container
             User USERNAME
             IdentityFile ~/.ssh/vscode-remote
             ProxyCommand ssh HPC-LOGIN \"~/bin/start-ssh-job.bash cpu /path/to/your/container.sqsh\"
-            StrictHostKeyChecking no  
-
-    You can have a CPU and GPU job running at the same time, just add them as separate hosts in your config.
+            StrictHostKeyChecking no
     "
-} 
+}
+
+# Auto-update functions (run silently in background)
+function silent_update_check() {
+    # Skip if auto-update is disabled
+    if [ -f "$HOME/.interactive-slurm.noauto" ]; then
+        return 1
+    fi
+    
+    # Check if enough time has passed since last update
+    if [ -f "$UPDATE_VERSION_FILE" ]; then
+        LAST_UPDATE=$(stat -f %m "$UPDATE_VERSION_FILE" 2>/dev/null || stat -c %Y "$UPDATE_VERSION_FILE" 2>/dev/null)
+        CURRENT_TIME=$(date +%s)
+        TIME_DIFF=$((CURRENT_TIME - LAST_UPDATE))
+        
+        # Only check for updates every 24 hours
+        if [ $TIME_DIFF -lt $UPDATE_INTERVAL ]; then
+            return 1
+        fi
+    fi
+    
+    # Perform silent update in background
+    (
+        perform_auto_update >/dev/null 2>&1
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Silent auto-update completed" >> "$UPDATE_LOG" 2>/dev/null
+    ) &
+}
+
+function get_current_version() {
+    if [ -f "$UPDATE_VERSION_FILE" ]; then
+        cat "$UPDATE_VERSION_FILE"
+    else
+        echo "unknown"
+    fi
+}
+
+function perform_auto_update() {
+    if ! command -v git &> /dev/null; then
+        return 1
+    fi
+    
+    # Initialize/update git repo if needed
+    if [ ! -d "$UPDATE_DIR/.git" ]; then
+        mkdir -p "$UPDATE_DIR"
+        git clone --depth 1 "$REPO_URL" "$UPDATE_DIR" 2>/dev/null || return 1
+    fi
+    
+    cd "$UPDATE_DIR"
+    
+    # Check for updates
+    git fetch origin main 2>/dev/null || return 1
+    
+    LOCAL_HASH=$(git rev-parse HEAD 2>/dev/null || echo "")
+    REMOTE_HASH=$(git rev-parse origin/main 2>/dev/null || echo "")
+    
+    if [ "$LOCAL_HASH" != "$REMOTE_HASH" ] && [ -n "$REMOTE_HASH" ]; then
+        # Update available, apply it
+        git pull origin main 2>/dev/null || return 1
+        
+        # Backup current installation
+        if [ -d "$HOME/bin" ]; then
+            cp -r "$HOME/bin" "${HOME/bin}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+        fi
+        
+        # Update scripts
+        mkdir -p "$HOME/bin"
+        cp bin/* "$HOME/bin/" 2>/dev/null || true
+        chmod +x "$HOME/bin"/*.bash "$HOME/bin"/*.sh 2>/dev/null || true
+        
+        # Update version
+        echo "$REMOTE_HASH" > "$UPDATE_VERSION_FILE"
+        
+        return 0
+    fi
+    
+    return 1
+}
+
+function check_for_updates() {
+    echo "🔍 Checking for Interactive SLURM updates..."
+    
+    if ! command -v git &> /dev/null; then
+        echo "❌ Git not available on this system"
+        return 1
+    fi
+    
+    # Perform quick update check
+    (
+        if [ ! -d "$UPDATE_DIR/.git" ]; then
+            echo "📥 Initializing update repository..."
+            git clone --depth 1 "$REPO_URL" "$UPDATE_DIR" 2>/dev/null
+        fi
+        
+        if [ -d "$UPDATE_DIR/.git" ]; then
+            cd "$UPDATE_DIR"
+            if git fetch origin main 2>/dev/null; then
+                LOCAL_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+                REMOTE_HASH=$(git rev-parse origin/main 2>/dev/null || echo "unknown")
+                
+                if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+                    echo "✅ Updates available!"
+                    echo "   Current: ${LOCAL_HASH:0:7}"
+                    echo "   Latest:  ${REMOTE_HASH:0:7}"
+                    echo ""
+                    echo "Run '~/bin/start-ssh-job.bash update' to install updates"
+                else
+                    echo "✅ Already running latest version"
+                fi
+            fi
+        fi
+    )
+}
+
+function update_interactive_slurm() {
+    echo "🚀 Updating Interactive SLURM..."
+    
+    if ! command -v git &> /dev/null; then
+        echo "❌ Git not available on this system"
+        return 1
+    fi
+    
+    if perform_auto_update; then
+        CURRENT_VERSION=$(get_current_version)
+        echo "✅ Update completed successfully!"
+        echo "   Version: ${CURRENT_VERSION:0:7}"
+        echo ""
+        echo "🎉 Interactive SLURM is now up to date!"
+    else
+        echo "ℹ️  No updates available or update failed"
+        echo "   Current version: $(get_current_version)"
+    fi
+}
 
 function query_slurm () {
     # only list states that can result in a running job
@@ -100,54 +236,139 @@ function cancel () {
     done
 }
 
-function list () {
+function list_jobs () {
     width=$((${#JOB_NAME} + 11))
+    echo "$(which squeue)"
     echo "$(squeue --me -O JobId,Partition,Name:$width,State,TimeUsed,TimeLimit,NodeList | grep -E "JOBID|$JOB_NAME")"
 }
 
 function ssh_connect () {
-    ROOT_NAME=$JOB_NAME
-
-    JOB_NAME=$ROOT_NAME-cpu
+    JOB_NAME=$JOB_NAME-cpu
     query_slurm
     CPU_NODE=$JOB_NODE
 
-    JOB_NAME=$ROOT_NAME-gpu
-    query_slurm
-    GPU_NODE=$JOB_NODE
-
-    if [ ! -z "${CPU_NODE}" ] && [ ! -z "${GPU_NODE}" ]; then
-        echo "Multiple jobs found, please specify which node to connect to:"
-        echo "1) $CPU_NODE (CPU)"
-        echo "2) $GPU_NODE (GPU)"
-        read -p "Enter 1 or 2: " choice
-        if [ "$choice" == "1" ]; then
-            GPU_NODE=
-        elif [ "$choice" == "2" ]; then
-            CPU_NODE=
-        else
-            echo "Invalid choice"
-            exit 1
-        fi
-    fi
-
-    if [ ! -z "${CPU_NODE}" ]; then
-        NODE=$CPU_NODE
-        TYPE=CPU
-    elif [ ! -z "${GPU_NODE}" ]; then
-        NODE=$GPU_NODE
-        TYPE=GPU
-    else
-        echo "No running job found"
+    if [ -z "${CPU_NODE}" ]; then
+        echo "No running CPU job found"
         exit 1
     fi
 
-    echo "Connecting to $NODE ($TYPE) via SSH"
-    ssh $NODE
+    echo "Connecting to $CPU_NODE (CPU) via SSH"
+    ssh $CPU_NODE
+}
+
+function detect_current_job_constraints() {
+    # Get constraints from the current CPU job using scontrol
+    query_slurm
+    
+    if [ -z "${JOB_ID}" ]; then
+        >&2 echo "No current job found"
+        return 1
+    fi
+    
+    >&2 echo "📋 Analyzing current job $JOB_ID..."
+    
+    # Get detailed job information using scontrol
+    JOB_INFO=$(scontrol show job $JOB_ID 2>/dev/null)
+    
+    if [ -n "$JOB_INFO" ]; then
+        >&2 echo "✅ Found job details"
+        
+        # Extract ExcNodeList (excluded nodes) from scontrol output
+        EXCLUDE_NODES=$(echo "$JOB_INFO" | grep -o "ExcNodeList=[^[:space:]]*" | cut -d= -f2)
+        
+        if [ -n "$EXCLUDE_NODES" ]; then
+            >&2 echo "   Excluded nodes: $EXCLUDE_NODES"
+            echo "--exclude=$EXCLUDE_NODES"
+        else
+            >&2 echo "   No excluded nodes found"
+            echo ""
+        fi
+    else
+        >&2 echo "⚠️ Unable to get job details"
+        return 1
+    fi
+}
+
+function gpuswap () {
+    # GPU Swap Command - Reserve GPU on demand and display greeting
+    CONTAINER_IMAGE_PATH=$1
+
+    echo "🚀 Starting GPU session reservation..."
+    echo "📋 Allocating GPU resources on aisc-interactive partition"
+    echo "⏱️  Time limit: 01:00:00"
+    echo "🎯 Account: aisc"
+    echo "💾 GPU: 1x GPU"
+
+    # Detect current job constraints to ensure GPU job matches CPU job architecture
+    CURRENT_CONSTRAINTS=$(detect_current_job_constraints)
+    
+    if [ $? -eq 0 ] && [ -n "$CURRENT_CONSTRAINTS" ]; then
+        echo "🏗️  Using same architecture constraints as current job"
+        echo "🔧 Constraints: $CURRENT_CONSTRAINTS"
+    else
+        echo "ℹ️  No current job found or unable to detect constraints"
+        echo "🔧 Using default GPU allocation"
+    fi
+
+    if [ -n "$CONTAINER_IMAGE_PATH" ]; then
+        echo "🐳 Container: $CONTAINER_IMAGE_PATH"
+        echo ""
+        echo "🔄 Executing: salloc -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS"
+        echo "🎉 Welcome to your GPU session! GPU resources are being reserved."
+        echo "📝 You can now run GPU-accelerated commands in this environment."
+        echo ""
+        echo "💡 To exit the GPU session, simply type 'exit' or press Ctrl+D"
+        echo "🔄 To return to CPU environment, use the 'remote' command"
+        echo ""
+        
+        # Run salloc with container support and current job constraints
+        echo "🔄 Executing: salloc -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS"
+        echo "🎉 Welcome to your GPU session! GPU resources are being reserved."
+        echo "📝 You can now run GPU-accelerated commands in this environment."
+        echo ""
+        echo "💡 To exit the GPU session, simply type 'exit' or press Ctrl+D"
+        echo "🔄 To return to CPU environment, use the 'remote' command"
+        echo ""
+        echo "💭 Note: To end GPU session, use 'remote cancel' or close this terminal"
+        echo ""
+        
+        # Run salloc with container support and current job constraints
+        salloc --job-name=gpuswap -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS --container-image="$CONTAINER_IMAGE_PATH" "$@"
+    else
+        echo ""
+        echo "🔄 Executing: salloc -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS"
+        echo "🎉 Welcome to your GPU session! GPU resources are being reserved."
+        echo "📝 You can now run GPU-accelerated commands in this environment."
+        echo ""
+        echo "💡 To exit the GPU session, simply type 'exit' or press Ctrl+D"
+        echo "🔄 To return to CPU environment, use the 'remote' command"
+        echo ""
+        echo "💭 Note: To end GPU session, use 'remote cancel' or close this terminal"
+        echo ""
+        
+        # Run salloc without container but with current job constraints
+        salloc --job-name=gpuswap -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS
+    fi
+
+    echo ""
+    echo "🔍 GPU Information:"
+    if nvidia-smi >/dev/null 2>&1; then
+        echo "✅ GPU successfully detected and accessible!"
+        echo "🎯 GPU Resources Available:"
+        nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits
+    else
+        echo "⚠️ nvidia-smi not available in this environment"
+    fi
+
+    echo "👋 GPU session ended. Returning to CPU environment..."
 }
 
 function connect () {
     CONTAINER_IMAGE_PATH=$1
+    
+    # Perform silent auto-update check (runs in background, doesn't block)
+    silent_update_check
+    
     query_slurm
 
     if [ -z "${JOB_STATE}" ]; then
@@ -181,6 +402,16 @@ function connect () {
         sleep 1
     done
 
+    # Display welcome message for CPU environment
+    echo "🖥️  Welcome to the CPU environment!"
+    echo "📋 Available commands:"
+    echo "   • 'remote gpuswap' - Switch to GPU environment"
+    echo "   • 'remote cancel' - Cancel the current session"
+    echo ""
+    if [ -n "$CONTAINER_IMAGE_PATH" ]; then
+        echo "🐳 Container: $(basename "$CONTAINER_IMAGE_PATH")"
+    fi
+
     nc $JOB_NODE $JOB_PORT
 }
 
@@ -192,15 +423,17 @@ if [ ! -z "$1" ]; then
     COMMAND=$1
     shift
     case $COMMAND in
-        list)   list ;;
+        list)   list_jobs ;;
         cancel) cancel ;;
         ssh)    ssh_connect ;;
         cpu)    JOB_NAME=$JOB_NAME-cpu; SBATCH_PARAM=$SBATCH_PARAM_CPU; connect "$@" ;;
-        gpu)    JOB_NAME=$JOB_NAME-gpu; SBATCH_PARAM=$SBATCH_PARAM_GPU; connect "$@" ;;
+        gpuswap) gpuswap "$@" ;;
+        check)  check_for_updates ;;
+        update) update_interactive_slurm ;;
         help)   usage ;;
         *)  echo -e "Command '$COMMAND' does not exist" >&2
             usage; exit 1 ;;
-    esac  
+    esac
     exit 0
 else
     usage
