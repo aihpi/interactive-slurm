@@ -29,6 +29,7 @@ That's it! You now have access to a compute node with:
 - Automatic updates (runs in background)
 - Full SLURM integration
 - Optional container support
+- Multiple GPU types (A30 and H100)
 
 ## ✨ Features
 
@@ -37,6 +38,8 @@ That's it! You now have access to a compute node with:
 - 🎯 **VSCode Ready**: Perfect Remote-SSH integration
 - 🔧 **Simple Management**: Use `remote` commands for all operations
 - 🔐 **Secure**: Automatic SSH key management
+- 🖥️ **Multiple GPU Types**: Support for A30 (gpuswap) and H100 GPUs
+- ⚡ **H100 Performance**: Access to high-performance H100 GPUs on aisc-shortrun partition
 
 ## 📋 Prerequisites
 
@@ -62,11 +65,20 @@ ssh slurm-cpu
 # List running jobs
 remote list
 
-# Switch to GPU environment
+# Switch to A30 GPU environment
 remote gpuswap
 
-# Cancel all sessions
-remote cancel
+# Reserve H100 GPUs (default: 1 GPU)
+remote h100
+
+# Reserve multiple H100 GPUs
+remote h100 4
+
+# Use H100 with container image
+remote h100 2 /path/to/container.sqsh
+
+# Exit all interactive sessions
+remote exit
 
 # Check for updates
 remote check

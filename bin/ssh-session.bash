@@ -97,16 +97,18 @@ display_slurm_options() {
     echo "🖥️  Welcome to the CPU environment!"
     echo "📋 Available 'remote' commands:"
     echo "   • remote list       - List running vscode-remote jobs"
-    echo "   • remote cancel     - Cancel running vscode-remote jobs"
     echo "   • remote ssh        - SSH into the node of a running job"
     echo "   • remote gpuswap    - Switch to GPU environment"
+    echo "   • remote h100       - Reserve H100 GPU on aisc-shortrun partition"
+    echo "   • remote exit       - Exit all jobs on aisc-interactive and aisc-shortrun partitions"
     echo "   • remote help       - Display full usage information"
     echo ""
     echo "💡 For GPU development:"
     echo "   • remote gpuswap    - Switch to GPU environment with salloc"
+    echo "   • remote h100       - Reserve H100 GPU on aisc-shortrun partition"
     echo ""
     echo "💡 To return to local environment:"
-    echo "   • remote cancel     - Cancel the current session"
+    echo "   • remote exit       - Exit all interactive sessions completely"
     echo ""
 }
 
@@ -118,7 +120,7 @@ if command -v complete &>/dev/null; then
         cur="${COMP_WORDS[COMP_CWORD]}"
         prev="${COMP_WORDS[COMP_CWORD-1]}"
         
-        opts="list cancel ssh gpuswap help"
+        opts="list ssh gpuswap h100 exit help"
         
         if [[ ${cur} == -* ]] ; then
             COMPREPLY=( $(compgen -W "-h --help" -- ${cur}) )

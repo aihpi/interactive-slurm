@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2025-11-26
+
+### Enhanced - GPU Session Management & H100 Support
+- **H100 GPU Reservation**: New `remote h100` command for reserving H100 GPUs on aisc-shortrun partition
+- **Configurable GPU Count**: H100 command supports specifying GPU count (default: 1) and container images
+- **Enhanced Session Exit**: Replaced `remote cancel` with `remote exit` for comprehensive session cleanup
+- **Partition-Specific Cleanup**: Exit command now cancels jobs on both aisc-interactive and aisc-shortrun partitions
+- **Improved Job Naming**: Enhanced job naming conventions for better tracking (remote-gpuswap, remote-h100, etc.)
+- **Better User Feedback**: Enhanced messaging for session management and job cancellation
+- **Updated Command Completion**: Bash completion updated to reflect new command structure
+- **GPU Environment Clarification**: gpuswap now explicitly mentions A30 GPU environment
+
+### Changed - Command Line Interface
+- **Removed**: `remote cancel` command (replaced by `remote exit`)
+- **Added**: `remote h100` for H100 GPU reservations
+- **Added**: `remote exit` for comprehensive session cleanup
+- **Updated**: Help text and documentation to reflect new command structure
+
+### Technical Improvements
+- **Session Management**: More robust handling of multiple partition jobs
+- **Job Cleanup**: Enhanced scancel commands with proper partition targeting
+- **Error Handling**: Better feedback when no jobs are found to cancel
+- **Container Support**: H100 command supports both containerized and non-containerized execution
+
 ## [Unreleased] - 2025-09-12
 
 ### Fixed - Setup Script Improvements & noexec Filesystem Compatibility

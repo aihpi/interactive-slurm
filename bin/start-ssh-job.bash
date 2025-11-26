@@ -24,7 +24,6 @@ function usage ()
 
     General commands:
     list      List running vscode-remote jobs
-    cancel    Cancels running vscode-remote jobs
     ssh       SSH into the node of a running job
     help      Display this message
     check     Check for Interactive SLURM updates
@@ -32,7 +31,8 @@ function usage ()
 
     Job commands:
     cpu [path]       Connect to a CPU node, optionally specifying a container image path
-    gpuswap          Swap to GPU environment with salloc reservation
+    gpuswap          Swap to A30 GPU environment with salloc reservation
+    h100 [count]     Reserve H100 GPUs on aisc-shortrun partition (default: 1)
     "
 }
 
@@ -216,15 +216,37 @@ function timeout () {
     fi
 }
 
-function cancel () {
-    query_slurm > /dev/null 2>&1
-    while [ ! -z "${JOB_ID}" ]; do
-        echo "Cancelling running job $JOB_ID on $JOB_NODE"
-        scancel $JOB_ID
-        timeout
-        sleep 2
-        query_slurm > /dev/null 2>&1
-    done
+function exit_session () {
+    echo "👋 Exiting all interactive sessions..."
+    echo "🔄 Cancelling all jobs on aisc-interactive and aisc-shortrun partitions"
+    echo ""
+
+    # Cancel all jobs on aisc-shortrun partition  
+    SHORTRUN_JOB_COUNT=$(squeue --me --states=R,PD,S,CF,RF,RH,RQ -p aisc-shortrun -h | wc -l)
+    if [ $SHORTRUN_JOB_COUNT -gt 0 ]; then
+        echo "🔄 Cancelling $SHORTRUN_JOB_COUNT job(s) on aisc-shortrun partition..."
+        scancel --partition=aisc-shortrun --user=$USER
+    fi
+
+    # Cancel all jobs on aisc-interactive partition
+    INTERACTIVE_JOB_COUNT=$(squeue --me --states=R,PD,S,CF,RF,RH,RQ -p aisc-interactive -h | wc -l)
+    if [ $INTERACTIVE_JOB_COUNT -gt 0 ]; then
+        echo "🔄 Cancelling $INTERACTIVE_JOB_COUNT job(s) on aisc-interactive partition..."
+        scancel --partition=aisc-interactive --user=$USER
+    fi
+
+    TOTAL_JOBS=$((INTERACTIVE_JOB_COUNT + SHORTRUN_JOB_COUNT))
+    
+    echo ""
+    if [ $TOTAL_JOBS -gt 0 ]; then
+        echo "✅ Successfully cancelled $TOTAL_JOBS job(s)"
+    else
+        echo "ℹ️ No jobs found to cancel on interactive partitions"
+    fi
+    
+    echo ""
+    echo "Goodbye! 🎉"
+    exit 0
 }
 
 function list_jobs () {
@@ -320,11 +342,11 @@ function gpuswap () {
         echo "💡 To exit the GPU session, simply type 'exit' or press Ctrl+D"
         echo "🔄 To return to CPU environment, use the 'remote' command"
         echo ""
-        echo "💭 Note: To end GPU session, use 'remote cancel' or close this terminal"
+        echo "💭 Note: To end GPU session, use 'exit'"
         echo ""
         
         # Run salloc with container support and current job constraints
-        salloc --job-name=gpuswap -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS --container-image="$CONTAINER_IMAGE_PATH" "$@"
+        salloc --job-name="$JOB_NAME-gpuswap-container" -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS --container-image="$CONTAINER_IMAGE_PATH" "$@"
     else
         echo ""
         echo "🔄 Executing: salloc -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS"
@@ -334,11 +356,11 @@ function gpuswap () {
         echo "💡 To exit the GPU session, simply type 'exit' or press Ctrl+D"
         echo "🔄 To return to CPU environment, use the 'remote' command"
         echo ""
-        echo "💭 Note: To end GPU session, use 'remote cancel' or close this terminal"
+        echo "💭 Note: To end GPU session, use 'exit'"
         echo ""
         
         # Run salloc without container but with current job constraints
-        salloc --job-name=gpuswap -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS
+        salloc --job-name="$JOB_NAME-gpuswap" -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS
     fi
 
     echo ""
@@ -352,6 +374,87 @@ function gpuswap () {
     fi
 
     echo "👋 GPU session ended. Returning to CPU environment..."
+}
+
+function h100 () {
+    # H100 GPU Command - Reserve H100 on aisc-shortrun partition
+    # Support: h100 [gpu_count] [container_path]
+    
+    # Parse arguments
+    GPU_COUNT=1
+    CONTAINER_IMAGE_PATH=""
+    
+    if [ $# -eq 0 ]; then
+        # No arguments: reserve 1 H100 GPU
+        GPU_COUNT=1
+    elif [ $# -eq 1 ]; then
+        # One argument: could be container path or gpu count
+        if [ -f "$1" ]; then
+            # It's a file path (container)
+            CONTAINER_IMAGE_PATH="$1"
+            GPU_COUNT=1
+        else
+            # It's a number (GPU count)
+            GPU_COUNT="$1"
+        fi
+    elif [ $# -ge 2 ]; then
+        # Two or more arguments: first is GPU count, rest is container
+        GPU_COUNT="$1"
+        CONTAINER_IMAGE_PATH="$2"
+        # Shift remaining arguments for container options
+        shift
+        shift
+        OTHER_ARGS="$@"
+    fi
+
+    echo "🚀 Starting H100 session reservation..."
+    echo "📋 Allocating H100 GPU resources on aisc-shortrun partition"
+    echo "⏱️  Time limit: 01:00:00"
+    echo "🎯 Account: aisc"
+    echo "💾 GPU: ${GPU_COUNT}x H100"
+
+    if [ -n "$CONTAINER_IMAGE_PATH" ]; then
+        echo "🐳 Container: $CONTAINER_IMAGE_PATH"
+        echo ""
+        echo "🔄 Executing: salloc -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --time=01:00:00"
+        echo "🎉 Welcome to your H100 session! H100 GPU resources are being reserved."
+        echo "📝 You can now run H100-accelerated commands in this environment."
+        echo ""
+        echo "💡 To exit the H100 session, simply type 'exit' or press Ctrl+D"
+        echo "🔄 To return to CPU environment, use the 'remote' command"
+        echo ""
+        echo "💭 Note: To end H100 session, use 'exit'"
+        echo ""
+        
+        # Run salloc with container support
+        salloc --job-name="$JOB_NAME-h100-container" -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --time=01:00:00 --container-image="$CONTAINER_IMAGE_PATH" $OTHER_ARGS
+    else
+        echo ""
+        echo "🔄 Executing: salloc -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --time=01:00:00"
+        echo "🎉 Welcome to your H100 session! H100 GPU resources are being reserved."
+        echo "📝 You can now run H100-accelerated commands in this environment."
+        echo ""
+        echo "💡 To exit the H100 session, simply type 'exit' or press Ctrl+D"
+        echo "🔄 To return to CPU environment, use the 'remote' command"
+        echo ""
+        echo "💭 Note: To end H100 session, use 'exit'"
+        echo ""
+        
+        # Run salloc without container
+        salloc --job-name="$JOB_NAME-h100" -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --time=01:00:00
+    fi
+
+    echo ""
+    echo "🔍 H100 GPU Information:"
+    if nvidia-smi >/dev/null 2>&1; then
+        echo "✅ H100 GPU successfully detected and accessible!"
+        echo "🎯 H100 GPU Resources Available:"
+        nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader,nounits
+    else
+        echo "⚠️ nvidia-smi not available in this environment"
+    fi
+
+    echo "👋 H100 session ended. Returning to CPU environment..."
 }
 
 function connect () {
@@ -397,7 +500,8 @@ function connect () {
     echo "🖥️  Welcome to the CPU environment!"
     echo "📋 Available commands:"
     echo "   • 'remote gpuswap' - Switch to GPU environment"
-    echo "   • 'remote cancel' - Cancel the current session"
+    echo "   • 'remote h100'    - Reserve H100 GPU on aisc-shortrun partition"
+    echo "   • 'remote exit'  - Cancel all interactive sessions"
     echo ""
     if [ -n "$CONTAINER_IMAGE_PATH" ]; then
         echo "🐳 Container: $(basename "$CONTAINER_IMAGE_PATH")"
@@ -407,7 +511,7 @@ function connect () {
 }
 
 if [ ! -z "$1" ]; then
-    JOB_NAME=vscode-remote
+    JOB_NAME=remote
     SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
     START=$(date +%s)
     trap "cleanup && exit 1" INT TERM
@@ -419,6 +523,8 @@ if [ ! -z "$1" ]; then
         ssh)    ssh_connect ;;
         cpu)    JOB_NAME=$JOB_NAME-cpu; SBATCH_PARAM=$SBATCH_PARAM_CPU; connect "$@" ;;
         gpuswap) gpuswap "$@" ;;
+        h100)   h100 "$@" ;;
+        exit)   exit_session ;;
         check)  check_for_updates ;;
         update) update_interactive_slurm ;;
         help)   usage ;;
