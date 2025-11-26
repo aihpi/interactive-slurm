@@ -45,15 +45,20 @@ function silent_update_check() {
     
     # Check if enough time has passed since last update
     if [ -f "$UPDATE_VERSION_FILE" ]; then
-        LAST_UPDATE=$(stat -f %m "$UPDATE_VERSION_FILE" 2>/dev/null || stat -c %Y "$UPDATE_VERSION_FILE" 2>/dev/null)
+        LAST_UPDATE=$(stat -c %Y "$UPDATE_VERSION_FILE" 2>/dev/null)
+        if [ -z "$LAST_UPDATE" ]; then
+            return 1
+        fi
+        
         CURRENT_TIME=$(date +%s)
         TIME_DIFF=$((CURRENT_TIME - LAST_UPDATE))
-        
+
         # Only check for updates every 24 hours
         if [ $TIME_DIFF -lt $UPDATE_INTERVAL ]; then
             return 1
         fi
     fi
+
     
     # Perform silent update in background
     (
