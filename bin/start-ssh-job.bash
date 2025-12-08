@@ -360,7 +360,7 @@ function gpuswap () {
         echo ""
         
         # Run salloc without container but with current job constraints
-        salloc --job-name="$JOB_NAME-gpuswap" -p aisc-interactive --account aisc --gres=gpu:1 --time=01:00:00 $CURRENT_CONSTRAINTS
+        salloc --job-name="$JOB_NAME-gpuswap" -p aisc-interactive --account aisc --gres=gpu:1 --mem=80GB --cpus-per-task=8 --time=01:00:00 $CURRENT_CONSTRAINTS
     fi
 
     echo ""
@@ -427,7 +427,7 @@ function h100 () {
         echo ""
         
         # Run salloc with container support
-        salloc --job-name="$JOB_NAME-h100-container" -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --time=01:00:00 --container-image="$CONTAINER_IMAGE_PATH" $OTHER_ARGS
+        salloc --job-name="$JOB_NAME-h100-container" -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --mem=80GB --cpus-per-task=8 --time=01:00:00 --container-image="$CONTAINER_IMAGE_PATH" $OTHER_ARGS
     else
         echo ""
         echo "🔄 Executing: salloc -p aisc-shortrun --account aisc --gres=gpu:h100:${GPU_COUNT} --time=01:00:00"
